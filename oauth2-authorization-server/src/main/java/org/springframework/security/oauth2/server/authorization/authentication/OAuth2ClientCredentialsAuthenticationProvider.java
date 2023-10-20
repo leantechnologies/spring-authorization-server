@@ -37,7 +37,7 @@ import org.springframework.security.oauth2.server.authorization.token.OAuth2Toke
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenGenerator;
 import org.springframework.util.Assert;
 
-import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthenticationProviderUtils.getAuthenticatedClientElseThrowInvalidClient;
 
@@ -59,25 +59,22 @@ public final class OAuth2ClientCredentialsAuthenticationProvider implements Auth
 	private final Log logger = LogFactory.getLog(getClass());
 	private final OAuth2AuthorizationService authorizationService;
 	private final OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator;
-	private final OAuth2ClientCredentialsScopeValidator scopeValidator;
+	private Consumer<OAuth2ClientCredentialsAuthenticationContext> authenticationValidator =
+			new OAuth2ClientCredentialsAuthenticationValidator();
 
 	/**
 	 * Constructs an {@code OAuth2ClientCredentialsAuthenticationProvider} using the provided parameters.
 	 *
 	 * @param authorizationService the authorization service
 	 * @param tokenGenerator the token generator
-	 * @param scopeValidator	   the scope validator
 	 * @since 0.2.3
 	 */
 	public OAuth2ClientCredentialsAuthenticationProvider(OAuth2AuthorizationService authorizationService,
-			OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator,
-			OAuth2ClientCredentialsScopeValidator scopeValidator) {
+			OAuth2TokenGenerator<? extends OAuth2Token> tokenGenerator) {
 		Assert.notNull(authorizationService, "authorizationService cannot be null");
 		Assert.notNull(tokenGenerator, "tokenGenerator cannot be null");
-		Assert.notNull(scopeValidator, "scopeValidator cannot be null");
 		this.authorizationService = authorizationService;
 		this.tokenGenerator = tokenGenerator;
-		this.scopeValidator = scopeValidator;
 	}
 
 	@Override
@@ -97,7 +94,11 @@ public final class OAuth2ClientCredentialsAuthenticationProvider implements Auth
 			throw new OAuth2AuthenticationException(OAuth2ErrorCodes.UNAUTHORIZED_CLIENT);
 		}
 
-		Set<String> authorizedScopes = scopeValidator.validateScopes(clientCredentialsAuthentication, clientPrincipal);
+		OAuth2ClientCredentialsAuthenticationContext authenticationContext =
+				OAuth2ClientCredentialsAuthenticationContext.with(clientCredentialsAuthentication)
+						.registeredClient(registeredClient)
+						.build();
+		authenticationValidator.accept(authenticationContext);
 
 		if (this.logger.isTraceEnabled()) {
 			this.logger.trace("Validated token request parameters");
@@ -108,7 +109,7 @@ public final class OAuth2ClientCredentialsAuthenticationProvider implements Auth
 				.registeredClient(registeredClient)
 				.principal(clientPrincipal)
 				.authorizationServerContext(AuthorizationServerContextHolder.getContext())
-				.authorizedScopes(authorizedScopes)
+				.authorizedScopes(clientCredentialsAuthentication.getScopes())
 				.tokenType(OAuth2TokenType.ACCESS_TOKEN)
 				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
 				.authorizationGrant(clientCredentialsAuthentication)
@@ -134,7 +135,7 @@ public final class OAuth2ClientCredentialsAuthenticationProvider implements Auth
 		OAuth2Authorization.Builder authorizationBuilder = OAuth2Authorization.withRegisteredClient(registeredClient)
 				.principalName(clientPrincipal.getName())
 				.authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-				.authorizedScopes(authorizedScopes);
+				.authorizedScopes(tokenContext.getAuthorizedScopes());
 		// @formatter:on
 		if (generatedAccessToken instanceof ClaimAccessor) {
 			authorizationBuilder.token(accessToken, (metadata) ->
@@ -159,6 +160,24 @@ public final class OAuth2ClientCredentialsAuthenticationProvider implements Auth
 	@Override
 	public boolean supports(Class<?> authentication) {
 		return OAuth2ClientCredentialsAuthenticationToken.class.isAssignableFrom(authentication);
+	}
+
+	/**
+	 * Sets the {@code Consumer} providing access to the {@link OAuth2ClientCredentialsAuthenticationContext}
+	 * and is responsible for validating specific OAuth 2.0 Client Credentials parameters
+	 * associated in the {@link OAuth2ClientCredentialsAuthenticationToken}.
+	 * The default authentication validator is {@link OAuth2ClientCredentialsAuthenticationValidator}.
+	 *
+	 * <p>
+	 * <b>NOTE:</b> The authentication validator MUST throw {@link OAuth2ClientCredentialsAuthenticationException} if validation fails.
+	 *
+	 * @param authenticationValidator the {@code Consumer} providing access to the {@link OAuth2ClientCredentialsAuthenticationContext}
+	 *                                   and is responsible for validating specific OAuth 2.0 Authorization Request parameters
+	 * @since TODO
+	 */
+	public void setAuthenticationValidator(Consumer<OAuth2ClientCredentialsAuthenticationContext> authenticationValidator) {
+		Assert.notNull(authenticationValidator, "authenticationValidator cannot be null");
+		this.authenticationValidator = authenticationValidator;
 	}
 
 }

@@ -27,12 +27,10 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2Token;
 import org.springframework.security.oauth2.core.endpoint.OAuth2AccessTokenResponse;
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService;
-import org.springframework.security.oauth2.server.authorization.authentication.DefaultOAuth2ClientCredentialsScopeValidator;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AccessTokenAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationCodeAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2AuthorizationGrantAuthenticationToken;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientCredentialsAuthenticationProvider;
-import org.springframework.security.oauth2.server.authorization.authentication.OAuth2ClientCredentialsScopeValidator;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2DeviceCodeAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.authentication.OAuth2RefreshTokenAuthenticationProvider;
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings;
@@ -71,7 +69,6 @@ public final class OAuth2TokenEndpointConfigurer extends AbstractOAuth2Configure
 	private Consumer<List<AuthenticationProvider>> authenticationProvidersConsumer = (authenticationProviders) -> {};
 	private AuthenticationSuccessHandler accessTokenResponseHandler;
 	private AuthenticationFailureHandler errorResponseHandler;
-	private OAuth2ClientCredentialsScopeValidator scopeValidator = new DefaultOAuth2ClientCredentialsScopeValidator();
 
 	/**
 	 * Restrict for internal use only.
@@ -161,17 +158,6 @@ public final class OAuth2TokenEndpointConfigurer extends AbstractOAuth2Configure
 		return this;
 	}
 
-	/**
-	 * Sets the {@link OAuth2ClientCredentialsScopeValidator} used for validating the requested scopes.
-	 *
-	 * @param scopeValidator the {@link OAuth2ClientCredentialsScopeValidator} used for validating the requested scopes.
-	 * @return the {@link OAuth2TokenEndpointConfigurer} for further configuration
-	 */
-	public OAuth2TokenEndpointConfigurer scopeValidator(OAuth2ClientCredentialsScopeValidator scopeValidator) {
-		this.scopeValidator = scopeValidator;
-		return this;
-	}
-
 	@Override
 	void init(HttpSecurity httpSecurity) {
 		AuthorizationServerSettings authorizationServerSettings = OAuth2ConfigurerUtils.getAuthorizationServerSettings(httpSecurity);
@@ -247,7 +233,7 @@ public final class OAuth2TokenEndpointConfigurer extends AbstractOAuth2Configure
 		authenticationProviders.add(refreshTokenAuthenticationProvider);
 
 		OAuth2ClientCredentialsAuthenticationProvider clientCredentialsAuthenticationProvider =
-				new OAuth2ClientCredentialsAuthenticationProvider(authorizationService, tokenGenerator, scopeValidator);
+				new OAuth2ClientCredentialsAuthenticationProvider(authorizationService, tokenGenerator);
 		authenticationProviders.add(clientCredentialsAuthenticationProvider);
 
 		OAuth2DeviceCodeAuthenticationProvider deviceCodeAuthenticationProvider =
